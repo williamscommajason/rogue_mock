@@ -7,35 +7,84 @@
 #include <netinet/in.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
-
-#define MYPORT 3334
+#define MYPORT "4950"
 #define BACKLOG 10
 #define MAXBUFF 500
 
-int sock(int argc, char *argv[])
+void *get_in_addr(struct sockaddr *sa)
 {
-	int sock_fd, addr_len, numbytes;
-	struct sockaddr_in my_addr, their_addr;
-	char buf[MAXBUFF];
-
-	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock_fd == -1)
+	if (sa->sa_family == AF_INET)
 	{
-		perror("Error :");
-		exit(1);
+		return &(((struct sockaddr_in *)sa)->sin_addr);
 	}
 	else
-		printf("Socket is open \n");
+	{
+		return &(((struct sockaddr_in6 *)sa)->sin6_addr);
+	}
+}
 
-	// my_addr.sin_len = 
-	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons(MYPORT);
-	my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	memset(&(my_addr.sin_zero), 0, 8);
+
+int sock(int argc, char *argv[])
+{
+	int sock_fd, ad, numbytes;
+	/* 
+	- hints points to an addrinfo struct that specifies criteria for selecting socket address returned in servinfo
+	- servinfo is a pointer to an array (list) of socket address structs
+	*/
+	struct addrinfo hints, *servinfo, *p;
+	char buf[MAXBUFF];
+	struct sockaddr_storage their_addr;
+	socklen_t addr_len;	
+	char s[INET_ADDRSTRLEN];
+
+	if (argc !=2) 
+	{
+		fprintf(stderr, "usage ./server hostname \n");
+		exit(1);
+	}
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+	hints.ai_flags = AI_PASSIVE; //use my IP
+
+	if ((ad = getaddrinfo(NULL , MYPORT, &hints, &servinfo)) != 0)
+	{
+		fprintf(stderr,"getaddrinfo: %s\n", gai_strerror(ad));
+		return 1;
+	}
+
+	for(p = servinfo; p != NULL ; p = p->ai_next)
+	{
+		if ((sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) 
+		{
+			perror("Server: socket");
+			continue;
+		}
+		
+		if (bind(sock_fd, p->ai_addr, p->ai_addrlen) == -1)
+		{
+			close(sock_fd);
+			perror("Server: bind");
+			continue;
+		}
+
+		break;
+	}
+
+	if (p == NULL)
+	{
+		fprintf(stderr, "Server: Failed to bind socket \n");
+		return 2;
+	}
 	
-	addr_len = sizeof(struct sockaddr);
+	freeaddrinfo(servinfo);
 	
+	printf("Server: waiting to recvfrom... \n");
+	addr_len = sizeof(their_addr);	
+
 	if ((numbytes = recvfrom(sock_fd, buf, MAXBUFF - 1, 0, (struct sockaddr *)&their_addr, &addr_len)) == -1)
 	{
 		perror("Server-recvfrom():");
@@ -44,44 +93,20 @@ int sock(int argc, char *argv[])
 	{
 		printf("Packet received using recvfrom() \n");
 	}
-	printf("Server: Got packed from %s \n", inet_ntoa(their_addr.sin_addr));
+	//printf("Server: Got packed from %s \n", inet_ntoa(their_addr.sin_addr));
 	printf("Server: Packet is %d bytes long \n" ,numbytes);
 	buf[numbytes] = '\0';
+	printf("Server: Packet contains \"%s\"\n", buf);
 	
 	
-	
-	if (bind(sock_fd, (struct sockaddr *)&my_addr, sizeof(my_addr)) == -1)
+	if (close(sock_fd) != 0)
 	{
-		perror("Error :");
-		exit(1);
+		printf("Server cannot close! \n");
 	}
 	else
 	{
-		printf("Socket is binded to port \n");
-	}
-	//printf("stopping now?");	
-	/*if (listen(sock_fd, BACKLOG) == -1)
-	{
-		perror("Error :");
-		exit(1);
-	}
-	else
-	{	
-		printf("Listening...");
-	}
-
-	new_fd = accept(sock_fd, (struct sockaddr *)&their_addr, &sin_size);
-	
-	if (new_fd == -1)
-	{
-		perror("Accepting Client failed :(");
-	}
-	else 
-	{
-		printf("Client accpeted!");
-	}
-	*/
-	close(sock_fd);	
+		printf("Server successfully closed! \n");
+	}	
 	return 0;
 }
 

@@ -7,24 +7,25 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <unistd.h>
 
-#define MY_PORT 4950
+#define MY_PORT "4950"
 
-int client(int argc, char **argv[])
+
+int client(int argc, char *argv[])
 {
-	int sock_fd, numbytes;
-	struct hostent *h;
-	struct sockaddr_in client_addr;
-	
+	int sock_fd, numbytes, ad;
+	struct addrinfo hints, *servinfo, *p;
+		
 	if (argc != 3)
 
 	{
-		fprintf(stderr,"Usage is: %s <domain_name> <message> \n", (const char *)argv[0]);
+		fprintf(stderr,"Usage is: %s <domain_name> <message> \n", argv[0]);
 		exit(1);
 	}
 
-	/*now get host into */
-	if ((h = gethostbyname((const char *)argv[1])) == NULL)
+	/*
+	if ((h = gethostbyname(argv[1])) == NULL)
 	{
 		herror("gethostbyname(): ");
 	}
@@ -33,7 +34,6 @@ int client(int argc, char **argv[])
 		printf("Retrieved host name...");
 	}
 
-	/* now we can print out hostnames */
 
 	printf("Hostname: %s\n", h->h_name);
 	printf("IP Address: %s\n", inet_ntoa(*(struct in_addr *)h->h_addr_list[0]));
@@ -58,24 +58,34 @@ int client(int argc, char **argv[])
 	
 	}	while((h->h_addr_list[i]) != NULL);
 	
-	return 0;
-
-	if((sock_fd = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
-	{
-		perror("Client - socket failed to open");
-		exit(1);
-	}
-	else
-	{
-		printf("Socket open\n");
-	}
+	*/
 	
-	client_addr.sin_port = AF_INET;
-	client_addr.sin_port = htons(MY_PORT);
-	client_addr.sin_addr = *((struct in_addr *)h->h_addr_list[0]);
-	memset(&(client_addr.sin_zero),0,8);
+	if ((ad = getaddrinfo(argv[1], MY_PORT, &hints, &servinfo)) != 0)
+	{
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ad));
+		return 1;
+	}
 
-	numbytes = sendto(sock_fd, (const char*)argv[2], strlen((const char *)argv[2]), 0, (struct sockaddr *)&client_addr, sizeof(struct sockaddr));
+	// loop through all results and make a socket
+
+	for (p = servinfo; p != NULL; p = p->ai_next)
+	{
+		if ((sock_fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
+		{
+			perror("Client: socket");
+			continue;
+		}
+		
+		break;
+	}
+
+	if (p == NULL)
+	{
+		fprintf(stderr, "Client: Failed to create socket \n");
+		return 2;
+	}
+
+	numbytes = sendto(sock_fd, argv[2], strlen(argv[2]), 0, p->ai_addr, p->ai_addrlen);
 	
 	if (numbytes == -1)
 	{
@@ -83,12 +93,17 @@ int client(int argc, char **argv[])
 		exit(1);
 	}
 	else
-	{
-		printf("Message sent!\n");
-	}
 
-	printf("Sent %d bytes to %s \n", numbytes, inet_ntoa(client_addr.sin_addr));
+	freeaddrinfo(servinfo);
+
+	printf("Sent %d bytes to %s \n", numbytes, argv[1]);
+	close(sock_fd);
 
 	return 0;
 }
 
+int main(int argc, char *argv[])
+{
+	client(argc, argv);
+	return 0;
+}
