@@ -16,7 +16,10 @@ int client(int argc, char *argv[])
 {
 	int sock_fd, numbytes, ad;
 	struct addrinfo hints, *servinfo, *p;
-		
+	
+	hints.ai_family = AF_UNSPEC;	
+	hints.ai_socktype = SOCK_DGRAM;
+	
 	if (argc != 3)
 
 	{
@@ -24,42 +27,7 @@ int client(int argc, char *argv[])
 		exit(1);
 	}
 
-	/*
-	if ((h = gethostbyname(argv[1])) == NULL)
-	{
-		herror("gethostbyname(): ");
-	}
-	else
-	{
-		printf("Retrieved host name...");
-	}
-
-
-	printf("Hostname: %s\n", h->h_name);
-	printf("IP Address: %s\n", inet_ntoa(*(struct in_addr *)h->h_addr_list[0]));
-	printf("The address length is: %d\n", h->h_length);
-	
-	int j = 0;
-
-	do
-	{
-		printf("Alias #%d: %s \n",j,h->h_aliases[j]);
-		j++;
-	
-	}	while(h->h_aliases[j] != NULL);
-
-	printf("Checking for other IPs.... \n");
-
-	int i = 1;
-	do
-	{
-		printf("Address #%i is: %s\n", i, inet_ntoa(*((struct in_addr *)(h->h_addr_list[i]))));
-		i++;
-	
-	}	while((h->h_addr_list[i]) != NULL);
-	
-	*/
-	
+		
 	if ((ad = getaddrinfo(argv[1], MY_PORT, &hints, &servinfo)) != 0)
 	{
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ad));
